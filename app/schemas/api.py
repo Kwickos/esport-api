@@ -44,7 +44,7 @@ class GameOut(_ORM):
     state: str | None = None
 
 
-class MatchOut(BaseModel):
+class MatchOut(_ORM):
     id: str
     league_id: str | None = None
     best_of: int | None = None

@@ -8,6 +8,11 @@ os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_esport.db"
 
 import pytest  # noqa: E402
 
+from app.config import settings  # noqa: E402
+
+# Safety: never run the suite against a real database.
+assert "test_esport" in settings.database_url, settings.database_url
+
 _DB = pathlib.Path("test_esport.db")
 
 
