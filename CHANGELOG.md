@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Pydantic response models and a generic `Page` pagination envelope.
+- `limit` / `offset` pagination on `/matches`, `/games/{id}/events`, `/games/{id}/frames`.
+- Async Alembic migrations with the initial schema (production source of truth).
+- OpenAPI tags and richer API metadata (description, contact, license).
+- API endpoint tests (response shapes + pagination).
+
+### Changed
+
+- REST routes now return typed Pydantic models instead of raw dicts.
+
 ## [0.1.0] - 2026-06-08
 
 ### Added

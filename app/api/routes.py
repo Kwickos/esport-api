@@ -1,6 +1,8 @@
-"""REST routes for the API (in-house normalized schema, reading from the database).
+"""REST routes for the public API (in-house normalized schema, reads from the DB).
 
-Phase 3 (upcoming): WebSocket /live/{game_id} to push live events in real time.
+Responses are typed with Pydantic models (`schemas/api.py`) and list endpoints are
+paginated with a `Page` envelope. Phase 3 (planned): WebSocket `/live/{game_id}`
+to push events in real time.
 """
 
 from __future__ import annotations
@@ -8,11 +10,21 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import models
 from app.db.base import SessionLocal
+from app.schemas.api import (
+    EventOut,
+    FrameOut,
+    GameOut,
+    LeagueOut,
+    MatchDetailOut,
+    MatchOut,
+    Page,
+    TeamSideFrame,
+)
 
 router = APIRouter()
 
@@ -22,80 +34,131 @@ async def get_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-@router.get("/leagues")
+async def _count(session: AsyncSession, model, *where) -> int:
+    stmt = select(func.count()).select_from(model)
+    for clause in where:
+        stmt = stmt.where(clause)
+    return (await session.execute(stmt)).scalar_one()
+
+
+@router.get("/leagues", response_model=list[LeagueOut], tags=["catalog"], summary="List leagues")
 async def list_leagues(session: AsyncSession = Depends(get_session)):
-    rows = (await session.execute(select(models.League))).scalars().all()
-    return [
-        {"id": r.id, "slug": r.slug, "name": r.name, "region": r.region, "image": r.image}
-        for r in rows
-    ]
+    rows = (
+        (await session.execute(select(models.League).order_by(models.League.name))).scalars().all()
+    )
+    return [LeagueOut.model_validate(r) for r in rows]
 
 
-@router.get("/matches")
+@router.get("/matches", response_model=Page[MatchOut], tags=["matches"], summary="List matches")
 async def list_matches(
-    status: str | None = Query(default=None, description="unstarted | inProgress | completed"),
-    limit: int = Query(default=50, le=200),
+    status: str | None = Query(None, description="unstarted | inProgress | completed"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
 ):
+    where = [models.Match.status == status] if status else []
+    total = await _count(session, models.Match, *where)
     stmt = select(models.Match)
-    if status:
-        stmt = stmt.where(models.Match.status == status)
-    rows = (await session.execute(stmt.limit(limit))).scalars().all()
-    return [
-        {
-            "id": r.id,
-            "league_id": r.league_id,
-            "best_of": r.best_of,
-            "status": r.status,
-            "scheduled_at": r.scheduled_at,
-            "teams": [r.blue_code, r.red_code],
-        }
+    for clause in where:
+        stmt = stmt.where(clause)
+    rows = (
+        (
+            await session.execute(
+                stmt.order_by(models.Match.scheduled_at.desc()).limit(limit).offset(offset)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    items = [
+        MatchOut(
+            id=r.id,
+            league_id=r.league_id,
+            best_of=r.best_of,
+            status=r.status,
+            scheduled_at=r.scheduled_at,
+            teams=[r.blue_code, r.red_code],
+        )
         for r in rows
     ]
+    return Page[MatchOut](items=items, total=total, limit=limit, offset=offset)
 
 
-@router.get("/matches/{match_id}")
+@router.get(
+    "/matches/{match_id}",
+    response_model=MatchDetailOut,
+    tags=["matches"],
+    summary="Match details (with games)",
+)
 async def get_match(match_id: str, session: AsyncSession = Depends(get_session)):
     match = await session.get(models.Match, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail="match not found")
     games = (
-        (await session.execute(select(models.Game).where(models.Game.match_id == match_id)))
+        (
+            await session.execute(
+                select(models.Game)
+                .where(models.Game.match_id == match_id)
+                .order_by(models.Game.number)
+            )
+        )
         .scalars()
         .all()
     )
-    return {
-        "id": match.id,
-        "status": match.status,
-        "teams": [match.blue_code, match.red_code],
-        "games": [
-            {"id": g.id, "number": g.number, "patch": g.patch, "state": g.state} for g in games
-        ],
-    }
+    return MatchDetailOut(
+        id=match.id,
+        league_id=match.league_id,
+        best_of=match.best_of,
+        status=match.status,
+        scheduled_at=match.scheduled_at,
+        teams=[match.blue_code, match.red_code],
+        games=[GameOut.model_validate(g) for g in games],
+    )
 
 
-@router.get("/games/{game_id}/events")
-async def game_events(game_id: str, session: AsyncSession = Depends(get_session)):
+@router.get(
+    "/games/{game_id}/events",
+    response_model=Page[EventOut],
+    tags=["games"],
+    summary="Derived events for a game",
+)
+async def game_events(
+    game_id: str,
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    session: AsyncSession = Depends(get_session),
+):
+    total = await _count(session, models.Event, models.Event.game_id == game_id)
     rows = (
         (
             await session.execute(
                 select(models.Event)
                 .where(models.Event.game_id == game_id)
                 .order_by(models.Event.ts)
+                .limit(limit)
+                .offset(offset)
             )
         )
         .scalars()
         .all()
     )
-    return [{"ts": e.ts, "type": e.type, "side": e.side, "info": e.info} for e in rows]
+    items = [EventOut.model_validate(e) for e in rows]
+    return Page[EventOut](items=items, total=total, limit=limit, offset=offset)
 
 
-@router.get("/games/{game_id}/frames")
+@router.get(
+    "/games/{game_id}/frames",
+    response_model=Page[FrameOut],
+    tags=["games"],
+    summary="Raw frames for a game",
+)
 async def game_frames(
     game_id: str,
-    limit: int = Query(default=500, le=2000),
+    limit: int = Query(500, ge=1, le=2000),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
 ):
+    total = await _count(session, models.Frame, models.Frame.game_id == game_id)
     rows = (
         (
             await session.execute(
@@ -103,31 +166,33 @@ async def game_frames(
                 .where(models.Frame.game_id == game_id)
                 .order_by(models.Frame.ts)
                 .limit(limit)
+                .offset(offset)
             )
         )
         .scalars()
         .all()
     )
-    return [
-        {
-            "ts": f.ts,
-            "state": f.state,
-            "blue": {
-                "kills": f.blue_kills,
-                "towers": f.blue_towers,
-                "barons": f.blue_barons,
-                "inhibitors": f.blue_inhibitors,
-                "gold": f.blue_gold,
-                "dragons": f.blue_dragons,
-            },
-            "red": {
-                "kills": f.red_kills,
-                "towers": f.red_towers,
-                "barons": f.red_barons,
-                "inhibitors": f.red_inhibitors,
-                "gold": f.red_gold,
-                "dragons": f.red_dragons,
-            },
-        }
+    items = [
+        FrameOut(
+            ts=f.ts,
+            state=f.state,
+            blue=TeamSideFrame(
+                kills=f.blue_kills,
+                towers=f.blue_towers,
+                barons=f.blue_barons,
+                inhibitors=f.blue_inhibitors,
+                gold=f.blue_gold,
+                dragons=f.blue_dragons or [],
+            ),
+            red=TeamSideFrame(
+                kills=f.red_kills,
+                towers=f.red_towers,
+                barons=f.red_barons,
+                inhibitors=f.red_inhibitors,
+                gold=f.red_gold,
+                dragons=f.red_dragons or [],
+            ),
+        )
         for f in rows
     ]
+    return Page[FrameOut](items=items, total=total, limit=limit, offset=offset)

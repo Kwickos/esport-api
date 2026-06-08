@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -66,17 +66,17 @@ class Frame(Base):
     game_id: Mapped[str] = mapped_column(ForeignKey("games.id"), index=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     state: Mapped[str | None] = mapped_column(String)
-    blue_kills: Mapped[int] = mapped_column(Integer, default=0)
-    blue_towers: Mapped[int] = mapped_column(Integer, default=0)
-    blue_barons: Mapped[int] = mapped_column(Integer, default=0)
-    blue_inhibitors: Mapped[int] = mapped_column(Integer, default=0)
-    blue_gold: Mapped[int] = mapped_column(Integer, default=0)
+    blue_kills: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    blue_towers: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    blue_barons: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    blue_inhibitors: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    blue_gold: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     blue_dragons: Mapped[list | None] = mapped_column(JSON)
-    red_kills: Mapped[int] = mapped_column(Integer, default=0)
-    red_towers: Mapped[int] = mapped_column(Integer, default=0)
-    red_barons: Mapped[int] = mapped_column(Integer, default=0)
-    red_inhibitors: Mapped[int] = mapped_column(Integer, default=0)
-    red_gold: Mapped[int] = mapped_column(Integer, default=0)
+    red_kills: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    red_towers: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    red_barons: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    red_inhibitors: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    red_gold: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     red_dragons: Mapped[list | None] = mapped_column(JSON)
 
 
