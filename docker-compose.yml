@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: esport
+      POSTGRES_PASSWORD: esport
+      POSTGRES_DB: esport
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+asyncpg://esport:esport@db:5432/esport
+    ports: ["8000:8000"]
+    depends_on: [db, redis]
+
+  worker:
+    build: .
+    command: python -m app.ingestion.worker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://esport:esport@db:5432/esport
+    depends_on: [db, redis]
+
+volumes:
+  pgdata:
