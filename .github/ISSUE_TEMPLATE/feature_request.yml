@@ -1,0 +1,39 @@
+name: ✨ Feature request
+description: Propose an improvement or a new feature
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem do you want to solve?
+      description: Describe the need or frustration behind the request.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would the ideal feature look like?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Data source (new adapter / game)
+        - Event engine (diff)
+        - REST / WebSocket API
+        - Ingestion / pollers
+        - Database / model
+        - Deployment / infra
+        - Documentation
+        - Other
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

@@ -1,0 +1,45 @@
+name: 🐛 Bug report
+description: Report a malfunction
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a bug! 🙏
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What's happening?
+      description: Describe the bug, and the expected vs observed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: How can the problem be reproduced?
+      placeholder: |
+        1. Run `make worker`
+        2. ...
+        3. See the error
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Tag, commit, or output of `git rev-parse --short HEAD`
+    validations:
+      required: false
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python version, database (sqlite/postgres).
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste the relevant logs (they will be formatted as code).
+      render: shell
