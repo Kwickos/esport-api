@@ -84,11 +84,12 @@ class RedisBus:
     @asynccontextmanager
     async def subscribe(self, game_id: str):
         pubsub = self._redis.pubsub()
-        await pubsub.subscribe(self._channel(game_id))
         try:
+            await pubsub.subscribe(self._channel(game_id))
             yield _RedisSubscription(pubsub)
         finally:
-            await pubsub.unsubscribe(self._channel(game_id))
+            # aclose() unsubscribes and releases the connection even if
+            # subscribe() above failed.
             await pubsub.aclose()
 
 

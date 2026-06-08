@@ -215,8 +215,10 @@ async def live_feed(websocket: WebSocket, game_id: str):
     async with bus.subscribe(game_id) as subscription:
 
         async def _forward() -> None:
-            while True:
-                await websocket.send_json(await subscription.get())
+            # Sending on a half-closed socket raises; treat it as a disconnect.
+            with contextlib.suppress(WebSocketDisconnect, RuntimeError):
+                while True:
+                    await websocket.send_json(await subscription.get())
 
         async def _watch_disconnect() -> None:
             # No inbound messages expected; this just detects the client closing
@@ -226,7 +228,9 @@ async def live_feed(websocket: WebSocket, game_id: str):
                     await websocket.receive_text()
 
         tasks = [asyncio.create_task(_forward()), asyncio.create_task(_watch_disconnect())]
-        _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in pending:
             task.cancel()
         await asyncio.gather(*pending, return_exceptions=True)
+        for task in done:
+            task.exception()  # retrieve so it isn't flagged as "never retrieved"

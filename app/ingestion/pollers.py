@@ -55,6 +55,19 @@ class GamePoller:
         self.game = game
         self.bus = bus
 
+    async def _publish(self, events: list[DerivedEvent], frame: NormalizedFrame) -> None:
+        """Push to the live bus. Must never break ingestion: swallow + log failures."""
+        try:
+            for ev in events:
+                await self.bus.publish(self.game.game_id, _event_message(ev))
+            await self.bus.publish(self.game.game_id, _score_message(frame))
+        except Exception:  # noqa: BLE001 - a bus blip must not stop persistence
+            log.warning(
+                "bus.publish failed for game %s; ingestion continues",
+                self.game.game_id,
+                exc_info=True,
+            )
+
     async def run(self) -> None:
         deriver = EventDeriver()
         cursor = self.game.start_time  # None -> the adapter will use its default
@@ -87,9 +100,7 @@ class GamePoller:
                     events = deriver.push(frame)
                     await repo.save_events(events)
                     await repo.save_frame(frame)
-                    for ev in events:
-                        await self.bus.publish(self.game.game_id, _event_message(ev))
-                    await self.bus.publish(self.game.game_id, _score_message(frame))
+                    await self._publish(events, frame)
 
                 last = sl.frames[-1]
                 if last.state == "finished":
@@ -134,5 +145,7 @@ class LiveGameTracker:
             for gid, task in list(self._tasks.items()):
                 if task.done():
                     self._tasks.pop(gid)
+                    if not task.cancelled() and task.exception() is not None:
+                        log.error("game poller %s crashed: %r", gid, task.exception())
 
             await asyncio.sleep(settings.poll_live_interval)
