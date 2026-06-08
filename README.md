@@ -58,6 +58,7 @@ make worker              # worker → ingests when a match is live
 | GET | `/matches/{id}` | match + games |
 | GET | `/games/{id}/events` | derived events (KILL/TOWER/DRAGON/BARON/INHIB) |
 | GET | `/games/{id}/frames` | raw frames |
+| WS | `/live/{id}` | live push: `subscribed` ack, then `event` / `score` messages |
 
 ## Prod (Docker, Postgres)
 

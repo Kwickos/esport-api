@@ -16,6 +16,7 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql+asyncpg://esport:esport@db:5432/esport
+      REDIS_URL: redis://redis:6379/0
     ports: ["8000:8000"]
     depends_on: [db, redis]
 
@@ -24,6 +25,7 @@ services:
     command: python -m app.ingestion.worker
     environment:
       DATABASE_URL: postgresql+asyncpg://esport:esport@db:5432/esport
+      REDIS_URL: redis://redis:6379/0
     depends_on: [db, redis]
 
 volumes:

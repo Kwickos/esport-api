@@ -14,6 +14,9 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - Async Alembic migrations with the initial schema (production source of truth).
 - OpenAPI tags and richer API metadata (description, contact, license).
 - API endpoint tests (response shapes + pagination).
+- WebSocket `/live/{game_id}` live push (derived events + score snapshots).
+- Live event bus with in-process (dev/test) and Redis (prod) backends.
+- Optional `RUN_WORKER_IN_API` to run ingestion inside the API process for single-process live push.
 
 ### Changed
 

@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 
 from app.api.routes import router
+from app.bus import get_bus
+from app.config import settings
 from app.db.base import init_db
+from app.ingestion.pollers import LiveGameTracker
+from app.sources.lol_feed import LolFeedAdapter
 
 TAGS_METADATA = [
     {"name": "catalog", "description": "Leagues, teams and players."},
@@ -21,7 +28,25 @@ async def lifespan(app: FastAPI):
     # Dev convenience: create tables on startup (SQLite). In production, use the
     # Alembic migrations (see `alembic/`) as the source of truth instead.
     await init_db()
-    yield
+
+    worker_task: asyncio.Task | None = None
+    client: httpx.AsyncClient | None = None
+    if settings.run_worker_in_api:
+        # Single-process mode: run ingestion in-process so the in-process bus
+        # bridges worker -> WebSocket without Redis.
+        client = httpx.AsyncClient(timeout=20)
+        tracker = LiveGameTracker(LolFeedAdapter(client), get_bus())
+        worker_task = asyncio.create_task(tracker.run())
+
+    try:
+        yield
+    finally:
+        if worker_task is not None:
+            worker_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await worker_task
+        if client is not None:
+            await client.aclose()
 
 
 app = FastAPI(
