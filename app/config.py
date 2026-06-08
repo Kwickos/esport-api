@@ -21,5 +21,12 @@ class Settings(BaseSettings):
     poll_live_interval: float = 30.0  # detection of live games
     poll_frame_interval: float = 10.0  # native cadence of the window feed
 
+    # Live push (WebSocket). With REDIS_URL set, the worker and API processes are
+    # bridged via Redis pub/sub; otherwise an in-process bus is used.
+    redis_url: str | None = None
+    # Dev convenience: run the ingestion worker inside the API process so the
+    # in-process bus works end-to-end without Redis.
+    run_worker_in_api: bool = False
+
 
 settings = Settings()

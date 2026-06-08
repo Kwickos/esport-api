@@ -17,7 +17,7 @@ from app.config import settings
 from app.db.base import SessionLocal
 from app.db.repository import Repository
 from app.engine.diff import EventDeriver
-from app.schemas.domain import GameRef
+from app.schemas.domain import DerivedEvent, GameRef, NormalizedFrame
 from app.sources.base import SourceAdapter
 from app.timeutil import round10, utcnow
 
@@ -27,10 +27,46 @@ log = logging.getLogger("ingestion")
 MAX_IDLE_SLICES = 6
 
 
+def _event_message(ev: DerivedEvent) -> dict:
+    return {
+        "type": "event",
+        "game_id": ev.game_id,
+        "ts": ev.ts.isoformat(),
+        "event_type": ev.type,
+        "side": ev.side,
+        "info": ev.info,
+    }
+
+
+def _score_message(frame: NormalizedFrame) -> dict:
+    return {
+        "type": "score",
+        "game_id": frame.game_id,
+        "ts": frame.ts.isoformat(),
+        "state": frame.state,
+        "blue": {"kills": frame.blue.kills, "towers": frame.blue.towers, "gold": frame.blue.gold},
+        "red": {"kills": frame.red.kills, "towers": frame.red.towers, "gold": frame.red.gold},
+    }
+
+
 class GamePoller:
-    def __init__(self, adapter: SourceAdapter, game: GameRef):
+    def __init__(self, adapter: SourceAdapter, game: GameRef, bus):
         self.adapter = adapter
         self.game = game
+        self.bus = bus
+
+    async def _publish(self, events: list[DerivedEvent], frame: NormalizedFrame) -> None:
+        """Push to the live bus. Must never break ingestion: swallow + log failures."""
+        try:
+            for ev in events:
+                await self.bus.publish(self.game.game_id, _event_message(ev))
+            await self.bus.publish(self.game.game_id, _score_message(frame))
+        except Exception:  # noqa: BLE001 - a bus blip must not stop persistence
+            log.warning(
+                "bus.publish failed for game %s; ingestion continues",
+                self.game.game_id,
+                exc_info=True,
+            )
 
     async def run(self) -> None:
         deriver = EventDeriver()
@@ -61,8 +97,10 @@ class GamePoller:
                     await repo.save_metadata(self.game.game_id, sl.metadata)
 
                 for frame in sl.frames:
-                    await repo.save_events(deriver.push(frame))
+                    events = deriver.push(frame)
+                    await repo.save_events(events)
                     await repo.save_frame(frame)
+                    await self._publish(events, frame)
 
                 last = sl.frames[-1]
                 if last.state == "finished":
@@ -78,8 +116,9 @@ class GamePoller:
 
 
 class LiveGameTracker:
-    def __init__(self, adapter: SourceAdapter):
+    def __init__(self, adapter: SourceAdapter, bus):
         self.adapter = adapter
+        self.bus = bus
         self._tasks: dict[str, asyncio.Task] = {}
 
     async def run(self) -> None:
@@ -100,11 +139,13 @@ class LiveGameTracker:
                         game.red_code,
                     )
                     self._tasks[game.game_id] = asyncio.create_task(
-                        GamePoller(self.adapter, game).run()
+                        GamePoller(self.adapter, game, self.bus).run()
                     )
 
             for gid, task in list(self._tasks.items()):
                 if task.done():
                     self._tasks.pop(gid)
+                    if not task.cancelled() and task.exception() is not None:
+                        log.error("game poller %s crashed: %r", gid, task.exception())
 
             await asyncio.sleep(settings.poll_live_interval)

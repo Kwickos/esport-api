@@ -7,12 +7,15 @@ to push events in real time.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.bus import get_bus
 from app.db import models
 from app.db.base import SessionLocal
 from app.schemas.api import (
@@ -196,3 +199,38 @@ async def game_frames(
         for f in rows
     ]
     return Page[FrameOut](items=items, total=total, limit=limit, offset=offset)
+
+
+@router.websocket("/live/{game_id}")
+async def live_feed(websocket: WebSocket, game_id: str):
+    """Stream derived events and score snapshots for a game in real time.
+
+    On connect, sends a `{"type": "subscribed"}` ack, then forwards each
+    `event` / `score` message published by the ingestion worker for this game.
+    """
+    await websocket.accept()
+    await websocket.send_json({"type": "subscribed", "game_id": game_id})
+    bus = get_bus()
+
+    async with bus.subscribe(game_id) as subscription:
+
+        async def _forward() -> None:
+            # Sending on a half-closed socket raises; treat it as a disconnect.
+            with contextlib.suppress(WebSocketDisconnect, RuntimeError):
+                while True:
+                    await websocket.send_json(await subscription.get())
+
+        async def _watch_disconnect() -> None:
+            # No inbound messages expected; this just detects the client closing
+            # the socket so we can stop forwarding.
+            with contextlib.suppress(WebSocketDisconnect):
+                while True:
+                    await websocket.receive_text()
+
+        tasks = [asyncio.create_task(_forward()), asyncio.create_task(_watch_disconnect())]
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        for task in done:
+            task.exception()  # retrieve so it isn't flagged as "never retrieved"

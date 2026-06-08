@@ -24,6 +24,7 @@ dependencies = [
     "aiosqlite>=0.20",       # Local DB by default (dev)
     "asyncpg>=0.29",         # Postgres (prod)
     "alembic>=1.13",         # Schema migrations
+    "redis>=5.0",            # Live pub/sub bus (prod live push)
     "pydantic>=2.6",
     "pydantic-settings>=2.2",
 ]
