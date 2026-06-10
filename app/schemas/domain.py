@@ -77,3 +77,19 @@ class DerivedEvent:
     type: str  # one of EVENT_TYPES
     side: str  # blue | red
     info: str  # e.g. "x2 (score 7-7)" or the dragon type
+
+
+@dataclass(slots=True)
+class ScheduledMatch:
+    """A match from the schedule (available 24/7, no live game required)."""
+
+    match_id: str
+    league_id: str
+    league_name: str
+    league_region: str | None
+    league_image: str | None
+    best_of: int | None
+    status: str  # unstarted | inProgress | completed
+    scheduled_at: datetime | None
+    blue_code: str
+    red_code: str

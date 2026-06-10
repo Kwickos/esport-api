@@ -13,7 +13,7 @@ from app.api.routes import router
 from app.bus import get_bus
 from app.config import settings
 from app.db.base import init_db
-from app.ingestion.pollers import LiveGameTracker
+from app.ingestion.pollers import LiveGameTracker, SchedulePoller
 from app.sources.lol_feed import LolFeedAdapter
 
 TAGS_METADATA = [
@@ -35,8 +35,15 @@ async def lifespan(app: FastAPI):
         # Single-process mode: run ingestion in-process so the in-process bus
         # bridges worker -> WebSocket without Redis.
         client = httpx.AsyncClient(timeout=20)
-        tracker = LiveGameTracker(LolFeedAdapter(client), get_bus())
-        worker_task = asyncio.create_task(tracker.run())
+        adapter = LolFeedAdapter(client)
+
+        async def _run_ingestion() -> None:
+            await asyncio.gather(
+                SchedulePoller(adapter).run(),
+                LiveGameTracker(adapter, get_bus()).run(),
+            )
+
+        worker_task = asyncio.create_task(_run_ingestion())
 
     try:
         yield

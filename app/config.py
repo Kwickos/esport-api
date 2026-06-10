@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Polling cadences (seconds)
     poll_live_interval: float = 30.0  # detection of live games
     poll_frame_interval: float = 10.0  # native cadence of the window feed
+    poll_schedule_interval: float = 300.0  # schedule refresh (leagues/matches)
 
     # Live push (WebSocket). With REDIS_URL set, the worker and API processes are
     # bridged via Redis pub/sub; otherwise an in-process bus is used.

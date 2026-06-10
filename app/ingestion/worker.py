@@ -12,7 +12,7 @@ import httpx
 
 from app.bus import get_bus
 from app.db.base import init_db
-from app.ingestion.pollers import LiveGameTracker
+from app.ingestion.pollers import LiveGameTracker, SchedulePoller
 from app.sources.lol_feed import LolFeedAdapter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -22,7 +22,10 @@ async def main() -> None:
     await init_db()
     async with httpx.AsyncClient(timeout=20) as client:
         adapter = LolFeedAdapter(client)
-        await LiveGameTracker(adapter, get_bus()).run()
+        await asyncio.gather(
+            SchedulePoller(adapter).run(),
+            LiveGameTracker(adapter, get_bus()).run(),
+        )
 
 
 if __name__ == "__main__":

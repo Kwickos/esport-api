@@ -9,6 +9,10 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Schedule ingestion (`SchedulePoller`): real leagues and matches are upserted
+  into the DB around the clock — the API serves real data even when no game
+  is live.
+
 - Pydantic response models and a generic `Page` pagination envelope.
 - `limit` / `offset` pagination on `/matches`, `/games/{id}/events`, `/games/{id}/frames`.
 - Async Alembic migrations with the initial schema (production source of truth).
