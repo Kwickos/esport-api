@@ -5,9 +5,12 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.bus import get_bus
@@ -74,3 +77,13 @@ app.include_router(router)
 @app.get("/health", tags=["catalog"], summary="Health check")
 async def health():
     return {"status": "ok"}
+
+
+# Test dashboard (static, no build step) — served at /dashboard if web/ exists.
+_WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+if _WEB_DIR.is_dir():
+    app.mount("/dashboard", StaticFiles(directory=_WEB_DIR, html=True), name="dashboard")
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        return RedirectResponse(url="/dashboard/")

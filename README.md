@@ -45,8 +45,10 @@ make dev                 # venv + install + pre-commit  (or: pip install -e ".[d
 cp .env.example .env
 
 make run                 # API    → http://localhost:8000/docs
-make worker              # worker → ingests when a match is live
+make worker              # worker → schedule (24/7) + live games ingestion
 ```
+
+Then open the **test dashboard** at <http://localhost:8000/dashboard> — overview, leagues, matches, game inspector (events timeline + gold sparkline) and a live WebSocket console.
 
 ## Endpoints
 
@@ -59,6 +61,7 @@ make worker              # worker → ingests when a match is live
 | GET | `/games/{id}/events` | derived events (KILL/TOWER/DRAGON/BARON/INHIB) |
 | GET | `/games/{id}/frames` | raw frames |
 | WS | `/live/{id}` | live push: `subscribed` ack, then `event` / `score` messages |
+| GET | `/dashboard` | built-in test dashboard (leagues, matches, game inspector, live WS console) |
 
 ## Prod (Docker, Postgres)
 

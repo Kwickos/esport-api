@@ -12,6 +12,9 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - Schedule ingestion (`SchedulePoller`): real leagues and matches are upserted
   into the DB around the clock — the API serves real data even when no game
   is live.
+- Built-in test dashboard at `/dashboard` (static, zero build): overview stats,
+  leagues, paginated matches, game inspector (event timeline + gold-diff
+  sparkline), live WebSocket console and request log.
 
 - Pydantic response models and a generic `Page` pagination envelope.
 - `limit` / `offset` pagination on `/matches`, `/games/{id}/events`, `/games/{id}/frames`.
