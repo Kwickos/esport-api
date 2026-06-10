@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>esport-api — control room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #07090e;
+    --bg-raise: #0c1018;
+    --bg-panel: #0e131d;
+    --line: #1b2433;
+    --line-soft: #141b28;
+    --text: #d7e0ee;
+    --text-dim: #6b7a90;
+    --text-faint: #3d4a5e;
+    --accent: #2ee6c8;        /* electric cyan — live, ok, primary */
+    --accent-dim: #2ee6c822;
+    --amber: #ffb454;         /* events, warnings */
+    --red: #ff5470;           /* kills, errors */
+    --blue: #4ea0ff;          /* blue side */
+    --gold: #e8c878;          /* gold metric */
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+    --disp: "Barlow Condensed", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scrollbar-color: var(--line) var(--bg); }
+  body {
+    background:
+      radial-gradient(1100px 500px at 85% -10%, #10202b66, transparent 60%),
+      radial-gradient(900px 420px at -10% 110%, #14101f55, transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  /* faint blueprint grid over everything */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 44px 44px;
+    opacity: .35;
+    mask-image: radial-gradient(ellipse at 50% 0%, #000 30%, transparent 80%);
+  }
+  main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 28px 120px; }
+
+  /* ── topbar ─────────────────────────────────────────────── */
+  header {
+    display: flex; align-items: baseline; gap: 18px;
+    padding: 26px 0 18px; border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .brand { font-family: var(--disp); font-size: 34px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+  .brand em { font-style: normal; color: var(--accent); }
+  .brand-sub { color: var(--text-dim); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
+  .spacer { flex: 1; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 3px;
+    padding: 5px 12px; font-size: 12px; color: var(--text-dim);
+    background: var(--bg-raise);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); }
+  .dot.ok { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 2.2s infinite; }
+  .dot.bad { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  /* ── layout ─────────────────────────────────────────────── */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+  .full { grid-column: 1 / -1; }
+  @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
+
+  section {
+    background: linear-gradient(180deg, var(--bg-panel), var(--bg-raise));
+    border: 1px solid var(--line); border-radius: 4px;
+    overflow: hidden;
+    animation: rise .5s cubic-bezier(.2,.9,.3,1) both;
+  }
+  section:nth-of-type(2) { animation-delay: .05s; }
+  section:nth-of-type(3) { animation-delay: .1s; }
+  section:nth-of-type(4) { animation-delay: .15s; }
+  section:nth-of-type(5) { animation-delay: .2s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+
+  .sec-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; border-bottom: 1px solid var(--line-soft);
+  }
+  .sec-head h2 {
+    font-family: var(--disp); font-size: 19px; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  .sec-head .tag {
+    font-size: 10px; letter-spacing: .12em; color: var(--bg);
+    background: var(--accent); border-radius: 2px; padding: 2px 7px; font-weight: 700;
+  }
+  .sec-head .tag.soon { background: var(--text-faint); color: var(--text); }
+  .sec-body { padding: 14px 16px; }
+
+  button, select, input {
+    font-family: var(--mono); font-size: 12px; color: var(--text);
+    background: var(--bg-raise); border: 1px solid var(--line); border-radius: 3px;
+    padding: 6px 11px; outline: none;
+  }
+  input::placeholder { color: var(--text-faint); }
+  button { cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  input:focus, select:focus { border-color: var(--accent); }
+
+  /* ── overview cards ─────────────────────────────────────── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    border: 1px solid var(--line); border-radius: 3px; padding: 12px 14px;
+    background: var(--bg-raise); position: relative; overflow: hidden;
+  }
+  .stat::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); opacity: .7; }
+  .stat .v { font-family: var(--disp); font-size: 34px; font-weight: 700; line-height: 1.1; }
+  .stat .k { color: var(--text-dim); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; }
+  .stat.amber::after { background: var(--amber); } .stat.amber .v { color: var(--amber); }
+  .stat.live::after { background: var(--red); }
+  .stat.live .v { color: var(--red); }
+
+  /* ── tables ─────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--text-faint); font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 10px; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); color: var(--text); }
+  tbody tr { cursor: pointer; transition: background .12s; }
+  tbody tr:hover { background: var(--accent-dim); }
+  .status { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 2px; border: 1px solid var(--line); color: var(--text-dim); }
+  .status.inProgress { color: var(--red); border-color: var(--red); animation: pulse 1.6s infinite; }
+  .status.completed { color: var(--text-dim); }
+  .status.unstarted { color: var(--accent); border-color: var(--accent); }
+  .vs b { color: var(--text); } .vs span { color: var(--text-faint); padding: 0 6px; }
+
+  .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .count { color: var(--text-faint); font-size: 11px; }
+
+  /* ── leagues ────────────────────────────────────────────── */
+  .leagues { display: flex; flex-wrap: wrap; gap: 8px; }
+  .league {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 3px; padding: 6px 12px;
+    background: var(--bg-raise); font-size: 12px;
+  }
+  .league img { width: 18px; height: 18px; object-fit: contain; filter: grayscale(.2); }
+  .league .reg { color: var(--text-faint); font-size: 10px; letter-spacing: .1em; }
+
+  /* ── inspector ──────────────────────────────────────────── */
+  .timeline { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .ev { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-left: 2px solid var(--line); background: var(--bg-raise); border-radius: 0 3px 3px 0; }
+  .ev .t { color: var(--text-faint); font-size: 11px; min-width: 66px; }
+  .ev .badge { font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 1px 7px; border-radius: 2px; min-width: 76px; text-align: center; }
+  .ev.KILL { border-left-color: var(--red); } .ev.KILL .badge { background: #ff547022; color: var(--red); }
+  .ev.DRAGON { border-left-color: var(--amber); } .ev.DRAGON .badge { background: #ffb45422; color: var(--amber); }
+  .ev.BARON { border-left-color: var(--gold); } .ev.BARON .badge { background: #e8c87822; color: var(--gold); }
+  .ev.TOWER { border-left-color: var(--blue); } .ev.TOWER .badge { background: #4ea0ff22; color: var(--blue); }
+  .ev.INHIBITOR { border-left-color: var(--accent); } .ev.INHIBITOR .badge { background: var(--accent-dim); color: var(--accent); }
+  .ev .side { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; min-width: 38px; }
+  .ev .side.blue { color: var(--blue); } .ev .side.red { color: var(--red); }
+  .sparkline { width: 100%; height: 72px; margin-top: 12px; }
+  .spark-label { color: var(--text-faint); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; margin-top: 10px; }
+
+  /* ── live console ───────────────────────────────────────── */
+  .console {
+    background: #05070b; border: 1px solid var(--line); border-radius: 3px;
+    height: 280px; overflow-y: auto; padding: 10px 12px; font-size: 12px;
+  }
+  .console .line { display: flex; gap: 10px; padding: 2px 0; animation: rise .25s both; }
+  .console .ts { color: var(--text-faint); flex-shrink: 0; }
+  .console .type { font-weight: 700; min-width: 88px; flex-shrink: 0; }
+  .console .type.event { color: var(--amber); }
+  .console .type.score { color: var(--blue); }
+  .console .type.subscribed { color: var(--accent); }
+  .console .type.sys { color: var(--text-faint); }
+  .console .type.error { color: var(--red); }
+  .console .payload { color: var(--text-dim); word-break: break-all; }
+
+  /* ── request log ────────────────────────────────────────── */
+  .reqlog { max-height: 180px; overflow-y: auto; }
+  .req { display: flex; gap: 12px; padding: 4px 8px; border-bottom: 1px solid var(--line-soft); font-size: 11px; }
+  .req .m { color: var(--accent); font-weight: 700; min-width: 32px; }
+  .req .u { color: var(--text-dim); flex: 1; word-break: break-all; }
+  .req .s { font-weight: 700; } .req .s.ok { color: var(--accent); } .req .s.err { color: var(--red); }
+  .req .ms { color: var(--text-faint); min-width: 52px; text-align: right; }
+
+  /* ── roadmap ────────────────────────────────────────────── */
+  .phases { display: flex; flex-direction: column; gap: 7px; }
+  .phase { display: flex; gap: 12px; align-items: center; padding: 7px 10px; border: 1px solid var(--line-soft); border-radius: 3px; background: var(--bg-raise); }
+  .phase .st { font-size: 10px; font-weight: 700; letter-spacing: .1em; padding: 2px 8px; border-radius: 2px; min-width: 64px; text-align: center; }
+  .phase .st.done { background: var(--accent-dim); color: var(--accent); }
+  .phase .st.next { background: #ffb45422; color: var(--amber); }
+  .phase .st.later { background: var(--line-soft); color: var(--text-faint); }
+  .phase .desc { color: var(--text-dim); }
+  .phase.dim { opacity: .65; }
+
+  .empty { color: var(--text-faint); padding: 18px 8px; text-align: center; font-size: 12px; }
+  .empty code { color: var(--text-dim); }
+  .hint { color: var(--text-faint); font-size: 11px; margin-top: 10px; }
+  .hint code { color: var(--accent); }
+  a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="brand">esport<em>—api</em></div>
+      <div class="brand-sub">control room // test dashboard</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill"><span class="dot" id="health-dot"></span><span id="health-text">checking…</span></span>
+    <span class="pill" id="api-base"></span>
+    <a class="pill" href="/docs" target="_blank">OpenAPI ↗</a>
+  </header>
+
+  <!-- overview -->
+  <div class="cols">
+    <section class="full">
+      <div class="sec-head"><h2>Overview</h2><span class="tag">live data</span>
+        <div class="spacer" style="flex:1"></div>
+        <button onclick="refreshAll()">⟳ refresh</button>
+      </div>
+      <div class="sec-body">
+        <div class="stats">
+          <div class="stat"><div class="v" id="st-leagues">–</div><div class="k">leagues</div></div>
+          <div class="stat"><div class="v" id="st-matches">–</div><div class="k">matches</div></div>
+          <div class="stat live"><div class="v" id="st-live">–</div><div class="k">in progress</div></div>
+          <div class="stat amber"><div class="v" id="st-upcoming">–</div><div class="k">upcoming</div></div>
+        </div>
+        <div class="hint" id="overview-hint"></div>
+      </div>
+    </section>
+
+    <!-- leagues -->
+    <section>
+      <div class="sec-head"><h2>Leagues</h2></div>
+      <div class="sec-body"><div class="leagues" id="leagues"></div></div>
+    </section>
+
+    <!-- live console -->
+    <section>
+      <div class="sec-head"><h2>Live console</h2><span class="tag">websocket</span></div>
+      <div class="sec-body">
+        <div class="toolbar">
+          <input id="ws-game" placeholder="game id…" style="flex:1" />
+          <button class="primary" id="ws-btn" onclick="toggleWs()">connect</button>
+        </div>
+        <div class="console" id="console"><div class="line"><span class="type sys">—</span><span class="payload">connect to /live/{game_id} to stream events &amp; score snapshots</span></div></div>
+      </div>
+    </section>
+
+    <!-- matches -->
+    <section class="full">
+      <div class="sec-head"><h2>Matches</h2></div>
+      <div class="sec-body">
+        <div class="toolbar">
+          <select id="f-status" onchange="state.offset=0;loadMatches()">
+            <option value="">all statuses</option>
+            <option value="unstarted">unstarted</option>
+            <option value="inProgress">inProgress</option>
+            <option value="completed">completed</option>
+          </select>
+          <span class="count" id="m-count"></span>
+          <div class="right">
+            <button id="m-prev" onclick="page(-1)">← prev</button>
+            <button id="m-next" onclick="page(1)">next →</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>scheduled (local)</th><th>league</th><th>match</th><th>bo</th><th>status</th><th>id</th></tr></thead>
+          <tbody id="m-rows"></tbody>
+        </table>
+        <div class="empty" id="m-empty" style="display:none">
+          No matches yet — start the worker to ingest the real schedule: <code>make worker</code>
+        </div>
+      </div>
+    </section>
+
+    <!-- match detail / game inspector -->
+    <section class="full">
+      <div class="sec-head"><h2>Game inspector</h2><span class="tag" id="insp-tag" style="display:none">selected</span></div>
+      <div class="sec-body">
+        <div class="toolbar">
+          <input id="insp-game" placeholder="game id… (or click a match above)" style="flex:1" />
+          <button class="primary" onclick="inspect()">inspect</button>
+        </div>
+        <div id="insp-meta" class="hint"></div>
+        <div class="cols" style="margin-top:12px">
+          <div>
+            <div class="spark-label">event timeline</div>
+            <div class="timeline" id="timeline"><div class="empty">no game selected</div></div>
+          </div>
+          <div>
+            <div class="spark-label">gold difference (blue − red)</div>
+            <svg class="sparkline" id="spark" viewBox="0 0 600 72" preserveAspectRatio="none"></svg>
+            <div class="spark-label">latest frame</div>
+            <div id="lastframe" class="hint">–</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- request log -->
+    <section>
+      <div class="sec-head"><h2>Request log</h2></div>
+      <div class="sec-body"><div class="reqlog" id="reqlog"></div></div>
+    </section>
+
+    <!-- roadmap -->
+    <section>
+      <div class="sec-head"><h2>Coming next</h2><span class="tag soon">roadmap</span></div>
+      <div class="sec-body">
+        <div class="phases">
+          <div class="phase"><span class="st done">done</span><span class="desc">REST API — schemas, pagination, migrations</span></div>
+          <div class="phase"><span class="st done">done</span><span class="desc">WebSocket live push — events &amp; score</span></div>
+          <div class="phase"><span class="st done">done</span><span class="desc">Schedule ingestion — real leagues &amp; matches 24/7</span></div>
+          <div class="phase dim"><span class="st next">next</span><span class="desc">API keys &amp; rate limiting — auth headers will appear here</span></div>
+          <div class="phase dim"><span class="st later">later</span><span class="desc">More games — adapter per title (see ROADMAP.md)</span></div>
+          <div class="phase dim"><span class="st later">later</span><span class="desc">Computer-vision ingestion for feed-less titles</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const state = { offset: 0, limit: 25, total: 0, ws: null };
+$("api-base").textContent = location.origin;
+
+/* ── fetch wrapper with request log ─────────────────────────── */
+async function api(path) {
+  const t0 = performance.now();
+  let res, body;
+  try { res = await fetch(path); body = await res.json(); }
+  catch (e) { logReq("GET", path, 0, performance.now() - t0); throw e; }
+  logReq("GET", path, res.status, performance.now() - t0);
+  if (!res.ok) throw new Error(`${res.status} on ${path}`);
+  return body;
+}
+function logReq(m, u, s, ms) {
+  const el = document.createElement("div");
+  el.className = "req";
+  el.innerHTML = `<span class="m">${m}</span><span class="u">${u}</span>` +
+    `<span class="s ${s >= 200 && s < 400 ? "ok" : "err"}">${s || "ERR"}</span>` +
+    `<span class="ms">${ms.toFixed(0)} ms</span>`;
+  const log = $("reqlog");
+  log.prepend(el);
+  while (log.children.length > 40) log.lastChild.remove();
+}
+
+/* ── health ─────────────────────────────────────────────────── */
+async function loadHealth() {
+  const t0 = performance.now();
+  try {
+    await api("/health");
+    $("health-dot").className = "dot ok";
+    $("health-text").textContent = `online · ${(performance.now() - t0).toFixed(0)} ms`;
+  } catch {
+    $("health-dot").className = "dot bad";
+    $("health-text").textContent = "offline";
+  }
+}
+
+/* ── overview + leagues ─────────────────────────────────────── */
+async function loadOverview() {
+  const [leagues, all, live, upcoming] = await Promise.all([
+    api("/leagues"),
+    api("/matches?limit=1"),
+    api("/matches?status=inProgress&limit=1"),
+    api("/matches?status=unstarted&limit=1"),
+  ]);
+  $("st-leagues").textContent = leagues.length;
+  $("st-matches").textContent = all.total;
+  $("st-live").textContent = live.total;
+  $("st-upcoming").textContent = upcoming.total;
+  $("overview-hint").innerHTML = all.total === 0
+    ? "Database is empty. Run <code>make worker</code> (or set <code>RUN_WORKER_IN_API=true</code>) to ingest the real schedule."
+    : `Serving real ingested data — ${all.total} matches across ${leagues.length} leagues.`;
+
+  const box = $("leagues");
+  box.innerHTML = "";
+  if (!leagues.length) box.innerHTML = '<div class="empty">no leagues ingested yet</div>';
+  for (const l of leagues) {
+    const el = document.createElement("span");
+    el.className = "league";
+    el.innerHTML = `${l.image ? `<img src="${l.image}" alt="" onerror="this.remove()" />` : ""}` +
+      `<b>${l.name || l.id}</b>${l.region ? `<span class="reg">${l.region}</span>` : ""}`;
+    box.appendChild(el);
+  }
+}
+
+/* ── matches table ──────────────────────────────────────────── */
+async function loadMatches() {
+  const status = $("f-status").value;
+  const q = new URLSearchParams({ limit: state.limit, offset: state.offset });
+  if (status) q.set("status", status);
+  const page = await api(`/matches?${q}`);
+  state.total = page.total;
+  $("m-count").textContent = `${page.total} total · ${state.offset}–${Math.min(state.offset + state.limit, page.total)}`;
+  $("m-prev").disabled = state.offset === 0;
+  $("m-next").disabled = state.offset + state.limit >= page.total;
+  const rows = $("m-rows");
+  rows.innerHTML = "";
+  $("m-empty").style.display = page.items.length ? "none" : "";
+  for (const m of page.items) {
+    const tr = document.createElement("tr");
+    const when = m.scheduled_at ? new Date(m.scheduled_at + (m.scheduled_at.endsWith("Z") ? "" : "Z")).toLocaleString() : "—";
+    tr.innerHTML = `<td>${when}</td><td>${m.league_id ?? "—"}</td>` +
+      `<td class="vs"><b>${m.teams[0] || "?"}</b><span>vs</span><b>${m.teams[1] || "?"}</b></td>` +
+      `<td>BO${m.best_of ?? "?"}</td><td><span class="status ${m.status}">${m.status}</span></td>` +
+      `<td style="color:var(--text-faint)">${m.id}</td>`;
+    tr.onclick = () => openMatch(m.id);
+    rows.appendChild(tr);
+  }
+}
+function page(dir) {
+  state.offset = Math.max(0, state.offset + dir * state.limit);
+  loadMatches();
+}
+
+/* ── match detail → inspector ───────────────────────────────── */
+async function openMatch(id) {
+  const m = await api(`/matches/${id}`);
+  const games = m.games || [];
+  $("insp-meta").innerHTML =
+    `<b>${m.teams[0]} vs ${m.teams[1]}</b> · BO${m.best_of ?? "?"} · ${m.status} · ` +
+    (games.length
+      ? "games: " + games.map(g => `<a href="#" onclick="event.preventDefault();inspectId('${g.id}')">#${g.number} (${g.state ?? "?"})</a>`).join(" · ")
+      : "no games yet (games appear once the match goes live)");
+  if (games.length) inspectId(games[0].id);
+  $("insp-tag").style.display = "";
+  document.querySelector(".sec-head #insp-tag").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+function inspectId(id) { $("insp-game").value = id; inspect(); }
+
+async function inspect() {
+  const id = $("insp-game").value.trim();
+  if (!id) return;
+  const [events, frames] = await Promise.all([
+    api(`/games/${id}/events?limit=1000`),
+    api(`/games/${id}/frames?limit=2000`),
+  ]);
+  // timeline
+  const tl = $("timeline");
+  tl.innerHTML = "";
+  if (!events.items.length) tl.innerHTML = '<div class="empty">no events for this game (yet)</div>';
+  const t0 = frames.items.length ? new Date(frames.items[0].ts) : (events.items.length ? new Date(events.items[0].ts) : null);
+  for (const e of events.items) {
+    const dt = t0 ? (new Date(e.ts) - t0) / 1000 : 0;
+    const mm = String(Math.floor(dt / 60)).padStart(2, "0");
+    const ss = String(Math.floor(dt % 60)).padStart(2, "0");
+    const el = document.createElement("div");
+    el.className = `ev ${e.type}`;
+    el.innerHTML = `<span class="t">${mm}:${ss}</span><span class="badge">${e.type}</span>` +
+      `<span class="side ${e.side}">${e.side}</span><span style="color:var(--text-dim)">${e.info ?? ""}</span>`;
+    tl.appendChild(el);
+  }
+  // gold-diff sparkline
+  drawSpark(frames.items);
+  // latest frame
+  const last = frames.items.at(-1);
+  $("lastframe").innerHTML = last
+    ? `state <b>${last.state}</b> · kills <b style="color:var(--blue)">${last.blue.kills}</b>–<b style="color:var(--red)">${last.red.kills}</b>` +
+      ` · towers ${last.blue.towers}–${last.red.towers} · gold ${last.blue.gold}–${last.red.gold}` +
+      ` · dragons [${last.blue.dragons.join(", ")}] vs [${last.red.dragons.join(", ")}]`
+    : "no frames stored for this game";
+}
+
+function drawSpark(frames) {
+  const svg = $("spark");
+  svg.innerHTML = "";
+  if (frames.length < 2) return;
+  const diffs = frames.map(f => f.blue.gold - f.red.gold);
+  const max = Math.max(Math.abs(Math.min(...diffs)), Math.abs(Math.max(...diffs)), 1);
+  const W = 600, H = 72, mid = H / 2;
+  const x = i => (i / (diffs.length - 1)) * W;
+  const y = v => mid - (v / max) * (mid - 6);
+  const pts = diffs.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  svg.innerHTML =
+    `<line x1="0" y1="${mid}" x2="${W}" y2="${mid}" stroke="#1b2433" stroke-dasharray="4 4"/>` +
+    `<polygon points="0,${mid} ${pts} ${W},${mid}" fill="#4ea0ff18"/>` +
+    `<polyline points="${pts}" fill="none" stroke="${diffs.at(-1) >= 0 ? "var(--blue)" : "var(--red)"}" stroke-width="1.6"/>`;
+}
+
+/* ── websocket console ──────────────────────────────────────── */
+function clog(type, payload) {
+  const el = document.createElement("div");
+  el.className = "line";
+  el.innerHTML = `<span class="ts">${new Date().toLocaleTimeString()}</span>` +
+    `<span class="type ${type}">${type}</span><span class="payload">${payload}</span>`;
+  const c = $("console");
+  c.appendChild(el);
+  c.scrollTop = c.scrollHeight;
+  while (c.children.length > 200) c.firstChild.remove();
+}
+function toggleWs() {
+  if (state.ws) { state.ws.close(); return; }
+  const id = $("ws-game").value.trim();
+  if (!id) { clog("error", "enter a game id first"); return; }
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/live/${encodeURIComponent(id)}`);
+  state.ws = ws;
+  $("ws-btn").textContent = "disconnect";
+  $("ws-btn").classList.remove("primary");
+  clog("sys", `connecting to /live/${id} …`);
+  ws.onmessage = (e) => {
+    let m; try { m = JSON.parse(e.data); } catch { return clog("error", e.data); }
+    if (m.type === "event") clog("event", `${m.event_type} · ${m.side} · ${m.info ?? ""}`);
+    else if (m.type === "score") clog("score", `kills ${m.blue.kills}–${m.red.kills} · gold ${m.blue.gold}–${m.red.gold}`);
+    else clog(m.type ?? "sys", JSON.stringify(m));
+  };
+  ws.onclose = () => { state.ws = null; $("ws-btn").textContent = "connect"; $("ws-btn").classList.add("primary"); clog("sys", "disconnected"); };
+  ws.onerror = () => clog("error", "websocket error (is the game id valid? is the server reachable?)");
+}
+
+/* ── boot ───────────────────────────────────────────────────── */
+async function refreshAll() {
+  await Promise.allSettled([loadHealth(), loadOverview(), loadMatches()]);
+}
+refreshAll();
+setInterval(loadHealth, 15000);
+</script>
+</body>
+</html>
