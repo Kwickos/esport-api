@@ -149,3 +149,25 @@ class LiveGameTracker:
                         log.error("game poller %s crashed: %r", gid, task.exception())
 
             await asyncio.sleep(settings.poll_live_interval)
+
+
+class SchedulePoller:
+    """Periodically ingests the schedule (leagues + matches) into the DB.
+
+    This is what fills the API with real data even when no game is live.
+    """
+
+    def __init__(self, adapter):
+        self.adapter = adapter
+
+    async def run(self) -> None:
+        log.info("schedule poller started")
+        while True:
+            try:
+                matches = await self.adapter.fetch_schedule()
+                async with SessionLocal() as session:
+                    count = await Repository(session).upsert_schedule(matches)
+                log.info("schedule upserted: %d matches", count)
+            except Exception:  # noqa: BLE001
+                log.exception("schedule poll failed")
+            await asyncio.sleep(settings.poll_schedule_interval)

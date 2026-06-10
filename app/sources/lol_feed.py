@@ -24,6 +24,7 @@ from app.schemas.domain import (
     GameRef,
     NormalizedFrame,
     PlayerPick,
+    ScheduledMatch,
     TeamState,
 )
 from app.sources.base import SliceResult
@@ -117,6 +118,36 @@ class LolFeedAdapter:
                     blue_code=teams[0]["code"] if teams else "",
                     red_code=teams[1]["code"] if len(teams) > 1 else "",
                     start_time=parse_ts(ev["startTime"]) if ev.get("startTime") else None,
+                )
+            )
+        return out
+
+    async def fetch_schedule(self) -> list[ScheduledMatch]:
+        """Upcoming/recent matches (available 24/7, no live game required)."""
+        data = await self._api("getSchedule")
+        events = (data.get("data", {}).get("schedule", {}) or {}).get("events") or []
+        out: list[ScheduledMatch] = []
+        for ev in events:
+            if ev.get("type") != "match":
+                continue
+            match = ev.get("match") or {}
+            match_id = match.get("id")
+            if not match_id:
+                continue
+            league = ev.get("league") or {}
+            teams = match.get("teams", [])
+            out.append(
+                ScheduledMatch(
+                    match_id=match_id,
+                    league_id=league.get("slug") or league.get("name", "unknown"),
+                    league_name=league.get("name", ""),
+                    league_region=league.get("region"),
+                    league_image=league.get("image"),
+                    best_of=(match.get("strategy") or {}).get("count"),
+                    status=ev.get("state", ""),
+                    scheduled_at=parse_ts(ev["startTime"]) if ev.get("startTime") else None,
+                    blue_code=teams[0].get("code", "") if teams else "",
+                    red_code=teams[1].get("code", "") if len(teams) > 1 else "",
                 )
             )
         return out

@@ -11,12 +11,51 @@ from dataclasses import asdict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import models
-from app.schemas.domain import DerivedEvent, GameMetadata, GameRef, NormalizedFrame
+from app.schemas.domain import (
+    DerivedEvent,
+    GameMetadata,
+    GameRef,
+    NormalizedFrame,
+    ScheduledMatch,
+)
 
 
 class Repository:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def upsert_schedule(self, matches: list[ScheduledMatch]) -> int:
+        """Insert/update leagues and matches from the schedule. Returns the count."""
+        for sm in matches:
+            if await self.session.get(models.League, sm.league_id) is None:
+                self.session.add(
+                    models.League(
+                        id=sm.league_id,
+                        slug=sm.league_id,
+                        name=sm.league_name,
+                        region=sm.league_region,
+                        image=sm.league_image,
+                    )
+                )
+            match = await self.session.get(models.Match, sm.match_id)
+            if match is None:
+                self.session.add(
+                    models.Match(
+                        id=sm.match_id,
+                        league_id=sm.league_id,
+                        best_of=sm.best_of,
+                        status=sm.status,
+                        scheduled_at=sm.scheduled_at,
+                        blue_code=sm.blue_code,
+                        red_code=sm.red_code,
+                    )
+                )
+            else:
+                match.status = sm.status
+                match.scheduled_at = sm.scheduled_at
+                match.best_of = sm.best_of
+        await self.session.commit()
+        return len(matches)
 
     async def ensure_game(self, game: GameRef) -> None:
         """Create the match and the game if they do not exist yet."""
