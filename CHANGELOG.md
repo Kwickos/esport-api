@@ -27,6 +27,9 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Dashboard redesigned: minimal dark UI with sidebar navigation (Overview,
+  Matches, Game inspector, Live console, Requests, Roadmap).
+
 - REST routes now return typed Pydantic models instead of raw dicts.
 
 ## [0.1.0] - 2026-06-08

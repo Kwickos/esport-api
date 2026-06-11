@@ -9,7 +9,8 @@ def test_dashboard_is_served():
     with TestClient(app) as client:
         r = client.get("/dashboard/")
         assert r.status_code == 200
-        assert "control room" in r.text
+        assert "esport-api" in r.text
+        assert "Game inspector" in r.text
 
 
 def test_root_redirects_to_dashboard():
